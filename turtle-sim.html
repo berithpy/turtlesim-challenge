@@ -4,7 +4,7 @@
 <head>
 
   <script type="text/javascript" src="http://cdn.robotwebtools.org/EventEmitter2/current/eventemitter2.min.js"></script>
-  <script type="text/javascript" src="http://cdn.robotwebtools.org/roslibjs/current/roslib.min.js"></script>
+  <script type="text/javascript" src="http://cdn.robotwebtools.org/roslibjs/current/roslib.js"></script>
 
   <script type="text/javascript" type="text/javascript">
     var rosBridgeServer = new ROSLIB.Ros({
@@ -25,27 +25,53 @@
       var fbDiv = document.getElementById('feedback');
       fbDiv.innerHTML += "<p>Connection to websocket server closed.</p>";
     });
+    var turtlePose = {}
+    var queue = []
 
+    function addTask(queue, task, parameters) {
+      queue.push(Array.prototype.slice.call(arguments, 1))
+    }
 
+    function executeNextTask(queue) {
+      task = queue.pop()
+      task[0].apply(cmdVelTopic, task.slice(1))
+    }
+
+    function scheduler(message) {
+      turtlePose = message;
+      if (!turtlePose.angular_velocity && !turtlePose.linear_velocity && queue.length) {
+        executeNextTask(queue)
+      }
+    }
+
+    var poseTopic = new ROSLIB.Topic({
+      ros: rosBridgeServer,
+      name: '/turtle1/pose',
+      messageType: 'turtlesim/Pose',
+    });
+    poseTopic.subscribe(scheduler)
+    
     var cmdVelTopic = new ROSLIB.Topic({
       ros: rosBridgeServer,
       name: '/turtle1/cmd_vel',
       messageType: 'geometry_msgs/Twist',
-      queue_size: 25
     });
 
-    var twist = new ROSLIB.Message({
-      linear: {
-        x: 0.0,
-        y: 0.0,
-        z: 0.0
-      },
-      angular: {
-        x: 0.0,
-        y: 0.0,
-        z: 0.0
-      }
-    });
+
+    function newTwist() {
+      return new ROSLIB.Message({
+        linear: {
+          x: 0.0,
+          y: 0.0,
+          z: 0.0
+        },
+        angular: {
+          x: 0.0,
+          y: 0.0,
+          z: 0.0
+        }
+      });
+    }
 
 
     function drawCuteStar() {
@@ -69,48 +95,18 @@
       cmdVelTopic.publish(twist);
     }
 
-    function resetTwist() {
-      twist.linear = {
-        x: 0.0,
-        y: 0.0,
-        z: 0.0
-      };
-      twist.angular = {
-        x: 0.0,
-        y: 0.0,
-        z: 0.0
-      }
-    }
-
     function rotate(angle) {
-      angle = angle * (Math.PI / 180)
-      angularSpeed = 1
-      var angularZ = 0.0;
-      angularZ = 0 + angle;
-      twist.angular.z = angularZ;
-      t0 = Date.now()
-      currentAngle = 0
-      while (currentAngle < angle) {
-        cmdVelTopic.publish(twist);
-        t1 = Date.now()
-        currentAngle = angularSpeed * (t1 - t0)
-      }
-      resetTwist()
+      twist = newTwist();
+      twist.angular.z = angle * (Math.PI / 180);
+      addTask(queue, cmdVelTopic.publish, twist);
+      // cmdVelTopic.publish(twist)
     }
 
     function move(distance) {
-      var linearX = 0.0;
-      linearX = 0 + distance;
-      twist.linear.x = linearX;
-      speed = 1
-      t0 = Date.now()
-      currentDistance = 0
-      while (currentDistance < distance) {
-        cmdVelTopic.publish(twist);
-        t1 = Date.now();
-        currentDistance = speed * (t1 - t0)
-      }
-      resetTwist()
+      twist = newTwist();
+      twist.linear.x = distance;
+      addTask(queue, cmdVelTopic.publish, twist);
+      // cmdVelTopic.publish(twist)
     }
 
     function drawPentagram(size, sides) {
