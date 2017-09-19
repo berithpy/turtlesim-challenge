@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+  <script type="text/javascript" src="http://cdn.robotwebtools.org/EventEmitter2/current/eventemitter2.min.js"></script>
+  <script type="text/javascript" src="http://cdn.robotwebtools.org/roslibjs/current/roslib.min.js"></script>
+
+  <script type="text/javascript" type="text/javascript">
+    var rosBridgeServer = new ROSLIB.Ros({
+      url: 'ws://localhost:9090'
+    });
+    rosBridgeServer.on('connection', function () {
+      var fbDiv = document.getElementById('feedback');
+      fbDiv.innerHTML += "<p>Connected to websocket server.</p>";
+    });
+    rosBridgeServer.on('error', function (error) {
+      var fbDiv = document.getElementById('feedback');
+      fbDiv.innerHTML += "<p>Error connecting to websocket server.</p>";
+    });
+
+    // This function is called when the connection to rosbridge is closed
+    rosBridgeServer.on('close', function () {
+      // Write appropriate message to #feedback div upon closing connection to rosbridge
+      var fbDiv = document.getElementById('feedback');
+      fbDiv.innerHTML += "<p>Connection to websocket server closed.</p>";
+    });
+
+
+    var cmdVelTopic = new ROSLIB.Topic({
+      ros: rosBridgeServer,
+      name: '/turtle1/cmd_vel',
+      messageType: 'geometry_msgs/Twist',
+      queue_size: 25
+    });
+
+    var twist = new ROSLIB.Message({
+      linear: {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0
+      },
+      angular: {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0
+      }
+    });
+
+
+    function drawCuteStar() {
+      /**
+      Set the appropriate values on the twist message object according to values in text boxes
+      It seems that turtlesim only uses the x property of the linear object 
+      and the z property of the angular object
+      **/
+      var linearX = 0.0;
+      var angularZ = 0.0;
+
+      // get values from text input fields. Note for simplicity we are not validating.
+      linearX = 0 + Number(document.getElementById('linearXText').value);
+      angularZ = 0 + Number(document.getElementById('angularZText').value);
+
+      // Set the appropriate values on the message object
+      twist.linear.x = linearX;
+      twist.angular.z = angularZ;
+
+      // Publish the message 
+      cmdVelTopic.publish(twist);
+    }
+
+    function resetTwist() {
+      twist.linear = {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0
+      };
+      twist.angular = {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0
+      }
+    }
+
+    function rotate(angle) {
+      angle = angle * (Math.PI / 180)
+      angularSpeed = 1
+      var angularZ = 0.0;
+      angularZ = 0 + angle;
+      twist.angular.z = angularZ;
+      t0 = Date.now()
+      currentAngle = 0
+      while (currentAngle < angle) {
+        cmdVelTopic.publish(twist);
+        t1 = Date.now()
+        currentAngle = angularSpeed * (t1 - t0)
+      }
+      resetTwist()
+    }
+
+    function move(distance) {
+      var linearX = 0.0;
+      linearX = 0 + distance;
+      twist.linear.x = linearX;
+      speed = 1
+      t0 = Date.now()
+      currentDistance = 0
+      while (currentDistance < distance) {
+        cmdVelTopic.publish(twist);
+        t1 = Date.now();
+        currentDistance = speed * (t1 - t0)
+      }
+      resetTwist()
+    }
+
+    function drawPentagram(size, sides) {
+      sides = Array(sides).fill().map((_, i) => i + 1);
+      sides.forEach(function (side) {
+        move(size)
+        rotate(180)
+        rotate(36)
+      })
+    }
+  </script>
+</head>
+
+<body>
+  <button id="sendMsg" type="button" onclick="drawPentagram(3,5);">Draw pentagram</button>
+  <div id="feedback"></div>
+</body>
+
+</html>
