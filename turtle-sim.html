@@ -19,37 +19,47 @@
       fbDiv.innerHTML += "<p>Error connecting to websocket server.</p>";
     });
 
-    // This function is called when the connection to rosbridge is closed
     rosBridgeServer.on('close', function () {
-      // Write appropriate message to #feedback div upon closing connection to rosbridge
       var fbDiv = document.getElementById('feedback');
       fbDiv.innerHTML += "<p>Connection to websocket server closed.</p>";
     });
+
     var turtlePose = {}
     var queue = []
 
+    var resetService = new ROSLIB.Service({
+      ros : rosBridgeServer,
+      name : 'reset',
+     serviceType : 'std_srvs/Empty'
+    });
+    
+    function reset(){
+      queue =[]
+      resetService.callService()
+    };
+
     function addTask(queue, task, parameters) {
       queue.push(Array.prototype.slice.call(arguments, 1))
-    }
+    };
 
     function executeNextTask(queue) {
       task = queue.pop()
       task[0].apply(cmdVelTopic, task.slice(1))
-    }
+    };
 
     function scheduler(message) {
       turtlePose = message;
       if (!turtlePose.angular_velocity && !turtlePose.linear_velocity && queue.length) {
         executeNextTask(queue)
       }
-    }
+    };
 
     var poseTopic = new ROSLIB.Topic({
       ros: rosBridgeServer,
       name: '/turtle1/pose',
       messageType: 'turtlesim/Pose',
     });
-    poseTopic.subscribe(scheduler)
+    poseTopic.subscribe(scheduler);
     
     var cmdVelTopic = new ROSLIB.Topic({
       ros: rosBridgeServer,
@@ -57,6 +67,9 @@
       messageType: 'geometry_msgs/Twist',
     });
 
+    function populateArray(n){
+      return Array(n).fill().map((_, i) => i + 1);
+    };
 
     function newTwist() {
       return new ROSLIB.Message({
@@ -71,57 +84,46 @@
           z: 0.0
         }
       });
-    }
-
-
-    function drawCuteStar() {
-      /**
-      Set the appropriate values on the twist message object according to values in text boxes
-      It seems that turtlesim only uses the x property of the linear object 
-      and the z property of the angular object
-      **/
-      var linearX = 0.0;
-      var angularZ = 0.0;
-
-      // get values from text input fields. Note for simplicity we are not validating.
-      linearX = 0 + Number(document.getElementById('linearXText').value);
-      angularZ = 0 + Number(document.getElementById('angularZText').value);
-
-      // Set the appropriate values on the message object
-      twist.linear.x = linearX;
-      twist.angular.z = angularZ;
-
-      // Publish the message 
-      cmdVelTopic.publish(twist);
-    }
+    };
 
     function rotate(angle) {
       twist = newTwist();
       twist.angular.z = angle * (Math.PI / 180);
       addTask(queue, cmdVelTopic.publish, twist);
       // cmdVelTopic.publish(twist)
-    }
+    };
 
     function move(distance) {
       twist = newTwist();
       twist.linear.x = distance;
       addTask(queue, cmdVelTopic.publish, twist);
       // cmdVelTopic.publish(twist)
-    }
+    };
 
-    function drawPentagram(size, sides) {
-      sides = Array(sides).fill().map((_, i) => i + 1);
+    function drawPentagram(size) {
+      sides = populateArray(5)
       sides.forEach(function (side) {
-        move(size)
-        rotate(180)
-        rotate(36)
+        move(size);
+        rotate(180);
+        rotate(36);
       })
-    }
+    };
+    function drawStar(size) {
+      sides = populateArray(5);
+      sides.forEach(function (side) {
+        move(size);
+        rotate(36);
+        move(size);
+        rotate(252);
+      })
+    };
   </script>
 </head>
 
 <body>
-  <button id="sendMsg" type="button" onclick="drawPentagram(3,5);">Draw pentagram</button>
+  <button id="drawPentagram" type="button" onclick="drawPentagram(2);">Draw pentagram</button>
+  <button id="drawStar" type="button" onclick="drawStar(1.8);">Draw Star!</button>
+  <button id="reset" type="button" onclick="reset();">Reset TurtleSim</button>
   <div id="feedback"></div>
 </body>
 
